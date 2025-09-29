@@ -46,11 +46,11 @@ async function initDatabase() {
 
     const createTableQuery = `
       CREATE TABLE IF NOT EXISTS users (
-        app_id VARCHAR(55) PRIMARY KEY,
+        app_id VARCHAR(100) PRIMARY KEY,
         user_id BIGINT NOT NULL,
-        first_name VARCHAR(25),
-        last_name VARCHAR(25),
-        username VARCHAR(25),
+        first_name VARCHAR(35),
+        last_name VARCHAR(35),
+        username VARCHAR(35),
         photo_url TEXT,
         is_subscribed BOOLEAN DEFAULT FALSE,
         last_check TIMESTAMP NULL,
@@ -129,6 +129,13 @@ if (!BOT_TOKEN || !BOT_USERNAME || !CHANNEL_ID) {
 function sanitizeInput(input) {
   if (typeof input !== 'string') return input;
   return input.replace(/[<>]/g, '');
+}
+
+function sanitizeForDB(value) {
+  if (value === undefined || value === null || value === '') {
+    return null;
+  }
+  return typeof value === 'string' ? sanitizeInput(value) : value;
 }
 
 function validateAppId(appId) {
@@ -322,10 +329,10 @@ app.post('/api/auth', async (req, res) => {
       [
         appId, 
         authData.id, 
-        sanitizeInput(authData.first_name), 
-        sanitizeInput(authData.last_name), 
-        sanitizeInput(authData.username), 
-        authData.photo_url, 
+        sanitizeForDB(authData.first_name), 
+        sanitizeForDB(authData.last_name), 
+        sanitizeForDB(authData.username), 
+        sanitizeForDB(authData.photo_url), 
         isSubscribed
       ]
     );

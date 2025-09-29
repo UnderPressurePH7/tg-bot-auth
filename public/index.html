@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ModPack Bloody</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>📢 Subscription Check</h1>
+      <p>Login via Telegram to verify your channel subscription</p>
+    </div>
+    
+    <div class="login-section" id="loginSection">
+      <div id="telegram-login-container"></div>
+    </div>
+    
+    <div class="loader" id="loader"></div>
+    <div class="error-message" id="errorMessage"></div>
+    
+    <div class="user-card" id="userCard"></div>
+    
+    <button id="logoutBtn" onclick="logout()" class="btn btn-danger" style="display: none;">
+      🚪 Logout
+    </button>
+    
+    <div class="status-card status-subscribed" id="statusSubscribed">
+      <div class="icon">✅</div>
+      <h2>You are subscribed!</h2>
+      <p>Thank you for subscribing to our channel</p>
+      <p>You have full access to all features</p>
+    </div>
+    
+    <div class="status-card status-not-subscribed" id="statusNotSubscribed">
+      <div class="icon">⚠️</div>
+      <h2>Subscription not found</h2>
+      <p>To continue, you need to subscribe to our Telegram channel</p>
+      <div style="margin-top: 20px;">
+        <a href="#" id="channelLink" target="_blank" class="btn btn-primary">
+          📢 Subscribe to channel
+        </a>
+        <button onclick="recheckSubscription()" class="btn btn-success">
+          🔄 Check again
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="https://telegram.org/js/telegram-widget.js?22"></script>
+  <script src="translations.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

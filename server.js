@@ -326,7 +326,7 @@ app.get('/api/user/:appId', async (req, res) => {
     const lastCheck = user.last_check ? new Date(user.last_check) : new Date(0);
     const timeDiff = now - lastCheck;
     
-    let isSubscribed = user.is_subscribed;
+    let isSubscribed = Boolean(user.is_subscribed);
     
     if (timeDiff > 60000) {
       isSubscribed = await checkChannelSubscription(user.user_id);
@@ -345,7 +345,7 @@ app.get('/api/user/:appId', async (req, res) => {
         username: sanitizeInput(user.username),
         photo_url: user.photo_url
       },
-      subscribed: isSubscribed
+      subscribed: Boolean(isSubscribed)
     });
     
   } catch (error) {
@@ -489,7 +489,7 @@ app.get('/api/subscription-status/:appId', async (req, res) => {
     const user = rows[0];
     
     res.json({ 
-      subscribed: user.is_subscribed,
+      subscribed: Boolean(user.is_subscribed),
       appId: appId,
       lastCheck: user.last_check
     });

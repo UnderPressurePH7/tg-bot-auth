@@ -38,13 +38,11 @@ async function init() {
   updatePageLanguage();
   
   try {
-    // Завантажуємо конфігурацію
     const configResponse = await fetch('/api/config');
     config = await configResponse.json();
     
     document.getElementById('channelLink').href = config.channelLink;
     
-    // Перевіряємо чи є користувач в БД
     const userResponse = await fetch(`/api/user/${encodeURIComponent(appId)}`);
     
     if (userResponse.ok) {

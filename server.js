@@ -6,12 +6,12 @@ const axios = require('axios');
 const path = require('path');
 const mysql = require('mysql2/promise');
 
-console.log('🔍 Debug змінних оточення:');
-console.log('BOT_TOKEN:', process.env.BOT_TOKEN ? '✅ знайдено' : '❌ не знайдено');
-console.log('BOT_USERNAME:', process.env.BOT_USERNAME || '❌ не знайдено');
-console.log('CHANNEL_ID:', process.env.CHANNEL_ID || '❌ не знайдено');
-console.log('CHANNEL_INVITE_LINK:', process.env.TELEGRAM_CHANNEL_INVITE_LINK || '⚠️ не задано (буде автогенерація)');
-console.log('MYSQL_HOST:', process.env.MYSQL_HOST || '❌ не знайдено');
+console.log('🔍 Environment variables debug:');
+console.log('BOT_TOKEN:', process.env.BOT_TOKEN ? '✅ found' : '❌ not found');
+console.log('BOT_USERNAME:', process.env.BOT_USERNAME || '❌ not found');
+console.log('CHANNEL_ID:', process.env.CHANNEL_ID || '❌ not found');
+console.log('CHANNEL_INVITE_LINK:', process.env.TELEGRAM_CHANNEL_INVITE_LINK || '⚠️ not set (will be auto-generated)');
+console.log('MYSQL_HOST:', process.env.MYSQL_HOST || '❌ not found');
 
 const app = express();
 
@@ -92,22 +92,22 @@ async function validateChannelId() {
     const status = response.data.result.status;
     
     if (['creator', 'administrator'].includes(status)) {
-      console.log('✅ Канал знайдено, бот має права адміністратора');
+      console.log('✅ Channel found, bot has administrator rights');
       return true;
     } else {
-      console.warn('⚠️ Бот знайшов канал, але не є адміністратором!');
-      console.warn('💡 Додайте бота як адміністратора каналу для перевірки підписок');
+      console.warn('⚠️ Bot found the channel but is not an administrator!');
+      console.warn('💡 Add the bot as channel administrator to check subscriptions');
       return false;
     }
   } catch (error) {
-    console.error('❌ Помилка перевірки каналу:', error.response?.data || error.message);
-    console.error('⚠️ Канал не знайдено або бот не доданий до каналу!');
-    console.error('💡 Переконайтеся що:');
-    console.error('   1. CHANNEL_ID правильний:');
-    console.error('      - @username (для публічних каналів)');
-    console.error('      - -100xxxxxxxxxx (для приватних/прихованих каналів)');
-    console.error('   2. Бот доданий як адміністратор каналу');
-    console.error('   3. У бота є права для перегляду членів каналу');
+    console.error('❌ Channel validation error:', error.response?.data || error.message);
+    console.error('⚠️ Channel not found or bot is not added to the channel!');
+    console.error('💡 Make sure that:');
+    console.error('   1. CHANNEL_ID is correct:');
+    console.error('      - @username (for public channels)');
+    console.error('      - -100xxxxxxxxxx (for private/hidden channels)');
+    console.error('   2. Bot is added as channel administrator');
+    console.error('   3. Bot has rights to view channel members');
     return false;
   }
 }
@@ -122,7 +122,7 @@ setInterval(() => {
 }, 60000);
 
 if (!BOT_TOKEN || !BOT_USERNAME || !CHANNEL_ID) {
-  console.error('❌ Помилка: Не знайдено обов\'язкові змінні оточення!');
+  console.error('❌ Error: Required environment variables not found!');
   process.exit(1);
 }
 
@@ -212,13 +212,80 @@ async function checkChannelSubscription(userId, useCache = true) {
     }
     
     if (error.response) {
-      console.error('❌ Помилка Telegram API:', error.response.data);
+      console.error('❌ Telegram API error:', error.response.data);
     } else if (error.code === 'ECONNABORTED') {
       console.error('⏱️ Telegram API timeout');
     } else {
-      console.error('Помилка перевірки підписки:', error.message);
+      console.error('Subscription check error:', error.message);
     }
     return false;
+  }
+}
+
+async function backgroundSubscriptionCheck() {
+  let connection;
+  try {
+    console.log('🔄 Starting background subscription check...');
+    
+    connection = await pool.getConnection();
+    
+    const [users] = await connection.execute(
+      'SELECT app_id, user_id FROM users'
+    );
+    
+    console.log(`📊 Found ${users.length} users to check`);
+    
+    let updatedCount = 0;
+    let errorCount = 0;
+    
+    for (const user of users) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        const isSubscribed = await checkChannelSubscription(user.user_id, false);
+        
+        await connection.execute(
+          'UPDATE users SET is_subscribed = ?, last_check = NOW() WHERE app_id = ?',
+          [isSubscribed, user.app_id]
+        );
+        
+        updatedCount++;
+        
+      } catch (error) {
+        errorCount++;
+        console.error(`❌ User check error ${user.app_id}:`, error.message);
+      }
+    }
+    
+    console.log(`✅ Background check completed: updated ${updatedCount}, errors ${errorCount}`);
+    
+  } catch (error) {
+    console.error('❌ Critical background check error:', error);
+  } finally {
+    if (connection) connection.release();
+  }
+}
+
+const BACKGROUND_CHECK_INTERVAL = 4 * 60 * 60 * 1000;
+let backgroundCheckTimer;
+
+function startBackgroundCheck() {
+  setTimeout(() => {
+    backgroundSubscriptionCheck();
+    
+    backgroundCheckTimer = setInterval(() => {
+      backgroundSubscriptionCheck();
+    }, BACKGROUND_CHECK_INTERVAL);
+    
+  }, 60000);
+  
+  console.log('⏰ Background subscription check configured (every 4 hours)');
+}
+
+function stopBackgroundCheck() {
+  if (backgroundCheckTimer) {
+    clearInterval(backgroundCheckTimer);
+    console.log('⏸️ Background subscription check stopped');
   }
 }
 
@@ -307,7 +374,7 @@ app.post('/api/auth', async (req, res) => {
     
     if (!isValid) {
       return res.status(401).json({ 
-        error: 'Невалідні дані авторизації або застарілі (>24 год)' 
+        error: 'Invalid authentication data or expired (>24 hours)' 
       });
     }
     
@@ -339,7 +406,7 @@ app.post('/api/auth', async (req, res) => {
     
     if (!isSubscribed) {
       return res.status(403).json({ 
-        error: 'Необхідна підписка на канал',
+        error: 'Channel subscription required',
         subscribed: false,
         appId: appId
       });
@@ -359,8 +426,8 @@ app.post('/api/auth', async (req, res) => {
     });
     
   } catch (error) {
-    console.error('Помилка авторизації:', error);
-    res.status(500).json({ error: 'Внутрішня помилка сервера' });
+    console.error('Authentication error:', error);
+    res.status(500).json({ error: 'Internal server error' });
   } finally {
     if (connection) connection.release();
   }
@@ -411,7 +478,7 @@ app.get('/api/subscription-status/:appId', async (req, res) => {
     connection = await pool.getConnection();
     
     const [rows] = await connection.execute(
-      'SELECT user_id, is_subscribed, last_check FROM users WHERE app_id = ?',
+      'SELECT is_subscribed, last_check FROM users WHERE app_id = ?',
       [appId]
     );
     
@@ -420,20 +487,16 @@ app.get('/api/subscription-status/:appId', async (req, res) => {
     }
     
     const user = rows[0];
-    const isSubscribed = await checkChannelSubscription(user.user_id, false);
-    
-    await connection.execute(
-      'UPDATE users SET is_subscribed = ?, last_check = NOW() WHERE app_id = ?',
-      [isSubscribed, appId]
-    );
     
     res.json({ 
-      subscribed: isSubscribed,
-      appId: appId
+      subscribed: user.is_subscribed,
+      appId: appId,
+      lastCheck: user.last_check
     });
+    
   } catch (error) {
-    console.error('Помилка перевірки:', error);
-    res.status(500).json({ error: 'Помилка перевірки підписки' });
+    console.error('Subscription check error:', error);
+    res.status(500).json({ error: 'Subscription check error' });
   } finally {
     if (connection) connection.release();
   }
@@ -446,6 +509,16 @@ app.use((err, req, res, next) => {
 
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, closing connections...');
+  stopBackgroundCheck();
+  if (pool) {
+    await pool.end();
+  }
+  process.exit(0);
+});
+
+process.on('SIGINT', async () => {
+  console.log('SIGINT received, closing connections...');
+  stopBackgroundCheck();
   if (pool) {
     await pool.end();
   }
@@ -458,14 +531,16 @@ initDatabase()
   .then(() => validateChannelId())
   .then((isValid) => {
     if (!isValid) {
-      console.error('⚠️ ПОПЕРЕДЖЕННЯ: Канал не валідний, але сервер запущено для налагодження');
+      console.error('⚠️ WARNING: Channel is not valid, but server started for debugging');
     }
     
     app.listen(PORT, () => {
-      console.log(`🚀 Сервер запущено на http://under.if.ua:${PORT}`);
+      console.log(`🚀 Server started on http://under.if.ua:${PORT}`);
       console.log(`📱 Bot: @${BOT_USERNAME}`);
       console.log(`📢 Channel: ${CHANNEL_ID}`);
-      console.log(`🔗 Invite Link: ${CHANNEL_INVITE_LINK || 'автогенерація'}`);
+      console.log(`🔗 Invite Link: ${CHANNEL_INVITE_LINK || 'auto-generated'}`);
+      
+      startBackgroundCheck();
     });
   })
   .catch(err => {
